@@ -1,3 +1,4 @@
+import {ObjectId} from 'mongodb'
 import type {MongoDB} from '../mongodb'
 import {Router} from 'express'
 import multer from 'multer'
@@ -58,12 +59,148 @@ export const tripRouter = (...args: any[]) => {
     return res.json({success: true, imageName: imageName})
   })
 
-  router
-    .post('/add', async (req, res) => {
-      const {body} = req
+  router.post('/add', async (req, res) => {
+    const {body} = req
 
-      try {
-        const {
+    try {
+      const {
+        city_name,
+        si_gu_name,
+        place_name,
+        imgName,
+        address,
+        contact,
+        operating_hours,
+        entrace_fee,
+        parking_status,
+        web_url,
+        short_info,
+        place_info,
+        adminId,
+        author
+      } = body
+
+      const createdAt = new Date()
+      const newCity = {
+        city_name,
+        si_gu_name,
+        place_name,
+        imgName,
+        address,
+        contact,
+        operating_hours,
+        entrace_fee,
+        parking_status,
+        web_url,
+        short_info,
+        place_info,
+        adminId,
+        author,
+        createdAt
+      }
+
+      const info = await trip.insertOne(newCity)
+
+      res.json({ok: true, body: info})
+    } catch (e) {
+      console.error('add trip error: ', e)
+      if (e instanceof Error) res.json({ok: false, errorMessage: e.message})
+    }
+  })
+
+  router.get('/list', async (req, res) => {
+    try {
+      const list = await trip.find({}).toArray()
+      const a = list.map(item => ({
+        ...item,
+        imgName: `${req.protocol}://${req.get('host')}/images/trip/${item.imgName}`
+      }))
+      res.json({ok: true, body: a})
+    } catch (e) {
+      console.error('get trip list error: ', e)
+      if (e instanceof Error) res.json({ok: false, errorMessage: e.message})
+    }
+  })
+
+  router.get('/info/:id', async (req, res) => {
+    const {id} = req.params
+    try {
+      const tripId = new ObjectId(id)
+      const a = await trip.findOne({_id: tripId})
+      if (!a) {
+        return res.status(404).json({ok: false, errorMessage: 'trip not found'})
+      }
+      return res.json({
+        ok: true,
+        body: {
+          city_name: a.city_name,
+          si_gu_name: a.si_gu_name,
+          place_name: a.place_name,
+          imgName: `${req.protocol}://${req.get('host')}/images/trip/${a.imgName}`,
+          address: a.address,
+          contact: a.contact,
+          operating_hours: a.operating_hours,
+          entrace_fee: a.entrace_fee,
+          parking_status: a.parking_status,
+          web_url: a.web_url,
+          short_info: a.short_info,
+          place_info: a.place_info
+        }
+      })
+    } catch (error) {
+      res.status(500).json({ok: false, errorMessage: 'Error retrieving trip info'})
+    }
+  })
+
+  router.post('/edit/:id', async (req, res) => {
+    const {id} = req.params
+    const {
+      city_name,
+      si_gu_name,
+      place_name,
+      imgName,
+      address,
+      contact,
+      operating_hours,
+      entrace_fee,
+      parking_status,
+      web_url,
+      short_info,
+      place_info,
+      adminId,
+      author
+    } = req.body
+
+    try {
+      const tripId = new ObjectId(id)
+
+      // 기존 이미지 파일 제거
+      const a = await trip.findOne({_id: tripId})
+      if (a && a.imgName && a.imgName !== imgName) {
+        const exist_img = path.join(
+          __dirname,
+          '..',
+          '..',
+          'public',
+          'images',
+          'trip',
+          a.imgName
+        )
+
+        // 기존 이미지 파일이 존재할 경우 삭제
+        if (fs.existsSync(exist_img)) {
+          fs.unlink(exist_img, err => {
+            if (err) {
+              console.error('Failed to delete existing image: ', err)
+            } else {
+              console.log('existing image deleted: ', exist_img)
+            }
+          })
+        }
+      }
+
+      const updateFields = {
+        $set: {
           city_name,
           si_gu_name,
           place_name,
@@ -78,48 +215,22 @@ export const tripRouter = (...args: any[]) => {
           place_info,
           adminId,
           author
-        } = body
-
-        const createdAt = new Date()
-        const newCity = {
-          city_name,
-          si_gu_name,
-          place_name,
-          imgName,
-          address,
-          contact,
-          operating_hours,
-          entrace_fee,
-          parking_status,
-          web_url,
-          short_info,
-          place_info,
-          adminId,
-          author,
-          createdAt
         }
-
-        const info = await trip.insertOne(newCity)
-
-        res.json({ok: true, body: info})
-      } catch (e) {
-        console.error('add trip error: ', e)
-        if (e instanceof Error) res.json({ok: false, errorMessage: e.message})
       }
-    })
-    .get('/list', async (req, res) => {
-      try {
-        const list = await trip.find({}).toArray()
-        const a = list.map(item => ({
-          ...item,
-          imgName: `${req.protocol}://${req.get('host')}/images/trip/${item.imgName}`
-        }))
-        res.json({ok: true, body: a})
-      } catch (e) {
-        console.error('get trip list error: ', e)
-        if (e instanceof Error) res.json({ok: false, errorMessage: e.message})
+
+      const result = await trip.findOneAndUpdate({_id: tripId}, updateFields, {
+        returnDocument: 'after'
+      })
+      if (!result) {
+        return res.status(404).json({ok: false, errorMessage: 'trip data not found'})
       }
-    })
+
+      return res.json({ok: true, body: result.value})
+    } catch (error) {
+      console.error('update trip error: ', error)
+      res.status(500).json({ok: false, errorMessage: 'Error updating trip'})
+    }
+  })
 
   return router
 }

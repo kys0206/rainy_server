@@ -1,10 +1,41 @@
 import type {MongoDB} from '../mongodb'
 import {Router} from 'express'
+import path from 'path'
+
+import {createUploader} from '../utils/upload_img'
 
 export const restaurantRouter = (...args: any[]) => {
   const db: MongoDB = args[0]
   const restaurant = db.collection('restaurants')
   const router = Router()
+
+  const upload = createUploader('restaurant')
+
+  // 이미지 파일 전송 라우터 추가
+  router.get('/images/restaurant/:filename', (req, res) => {
+    const {filename} = req.params
+    const filePath = path.join(
+      __dirname,
+      '..',
+      'public',
+      'images',
+      'restaurant',
+      filename
+    )
+    res.sendFile(filePath)
+  })
+
+  router.post('/upload', upload.single('image'), (req, res) => {
+    const imageData = req.file
+    console.log(imageData)
+    if (!imageData) {
+      return res.json({success: false, errorMessage: '파일 업로드 실패'})
+    }
+
+    const imageName = req.file?.filename
+    console.log(imageName)
+    return res.json({success: true, imageName: imageName})
+  })
 
   router
     .post('/add', async (req, res) => {
@@ -20,7 +51,7 @@ export const restaurantRouter = (...args: any[]) => {
           operating_hours,
           main_menu,
           parking_status,
-          imgURL,
+          imgName,
           short_info,
           store_info,
           adminId,
@@ -37,7 +68,7 @@ export const restaurantRouter = (...args: any[]) => {
           operating_hours,
           main_menu,
           parking_status,
-          imgURL,
+          imgName,
           short_info,
           store_info,
           adminId,

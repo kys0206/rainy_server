@@ -1,9 +1,9 @@
 import type {MongoDB} from '../mongodb'
 import {ObjectId} from 'mongodb'
 import {Router} from 'express'
-import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
+import {createUploader} from '../utils/upload_img'
 
 export const areaRouter = (...args: any[]) => {
   const db: MongoDB = args[0]
@@ -11,36 +11,7 @@ export const areaRouter = (...args: any[]) => {
   const district = db.collection('districts')
   const router = Router()
 
-  const uploadDir = './public/images/city'
-
-  // 폴더가 없을 경우 생성
-  if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, {recursive: true})
-  }
-
-  const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-      cb(null, uploadDir) // 이미지 파일 저장 경로 설정
-    },
-    filename: (req, file, cb) => {
-      const fileName = file.fieldname + '-' + Date.now() + path.extname(file.originalname)
-      cb(null, fileName)
-    }
-  })
-
-  const upload = multer({
-    storage: storage,
-    fileFilter: function (req, file, cb) {
-      var ext = path.extname(file.originalname)
-      if (ext !== '.png' && ext !== '.jpg' && ext !== '.jpeg') {
-        return cb(new Error('PNG, JPG 파일만 업로드 가능합니다.'))
-      }
-      cb(null, true)
-    },
-    limits: {
-      fileSize: 1024 * 1024
-    }
-  })
+  const cityUpload = createUploader('city')
 
   // 이미지 파일 전송 라우터 추가
   router.get('/images/city/:filename', (req, res) => {
@@ -49,7 +20,7 @@ export const areaRouter = (...args: any[]) => {
     res.sendFile(filePath)
   })
 
-  router.post('/city/upload', upload.single('image'), (req, res) => {
+  router.post('/city/upload', cityUpload.single('image'), (req, res) => {
     const imageData = req.file
     console.log(imageData)
     if (!imageData) {
@@ -57,7 +28,6 @@ export const areaRouter = (...args: any[]) => {
     }
 
     const imageName = req.file?.filename
-    console.log(imageName)
     return res.json({success: true, imageName: imageName})
   })
 
@@ -65,10 +35,10 @@ export const areaRouter = (...args: any[]) => {
     const {body} = req
 
     try {
-      const {city_name, short_name, imgURL, adminId, author} = body
+      const {city_name, short_name, imgName, adminId, author} = body
 
       const createdAt = new Date()
-      const newCity = {city_name, short_name, imgURL, adminId, author, createdAt}
+      const newCity = {city_name, short_name, imgName, adminId, author, createdAt}
 
       const info = await city.insertOne(newCity)
 
@@ -82,10 +52,10 @@ export const areaRouter = (...args: any[]) => {
   router.get('/city/list', async (req, res) => {
     try {
       const list = await city.find({}).toArray()
-      // imgURL 값을 서버의 이미지 파일 경로로 변환
+      // imgName 값을 서버의 이미지 파일 경로로 변환
       const modifiedList = list.map(item => ({
         ...item,
-        imgURL: `${req.protocol}://${req.get('host')}/images/city/${item.imgURL}`
+        imgName: `${req.protocol}://${req.get('host')}/images/city/${item.imgName}`
       }))
       res.json({ok: true, body: modifiedList})
     } catch (e) {
@@ -107,7 +77,7 @@ export const areaRouter = (...args: any[]) => {
         body: {
           city_name: a.city_name,
           short_name: a.short_name,
-          imgURL: `${req.protocol}://${req.get('host')}/images/city/${a.imgURL}`
+          imgName: `${req.protocol}://${req.get('host')}/images/city/${a.imgName}`
         }
       })
     } catch (error) {
@@ -117,17 +87,42 @@ export const areaRouter = (...args: any[]) => {
 
   router.post('/city/edit/:id', async (req, res) => {
     const {id} = req.params
-    const {city_name, short_name, imgURL, adminId, author} = req.body
+    const {city_name, short_name, imgName, adminId, author} = req.body
 
     try {
       const cityId = new ObjectId(id)
+
+      // 기존 이미지 파일 제거
+      const a = await city.findOne({_id: cityId})
+      if (a && a.imgName && a.imgName !== imgName) {
+        const exist_img = path.join(
+          __dirname,
+          '..',
+          '..',
+          'public',
+          'images',
+          'city',
+          a.imgName
+        )
+
+        // 기존 이미지 파일이 존재할 경우 삭제
+        if (fs.existsSync(exist_img)) {
+          fs.unlink(exist_img, err => {
+            if (err) {
+              console.error('Failed to delete existing image: ', err)
+            } else {
+              console.log('existing image deleted: ', exist_img)
+            }
+          })
+        }
+      }
 
       // 업데이트할 필드를 설정합니다.
       const updateFields = {
         $set: {
           city_name,
           short_name,
-          imgURL,
+          imgName,
           adminId,
           author
         }
@@ -176,26 +171,58 @@ export const areaRouter = (...args: any[]) => {
       if (e instanceof Error) res.json({ok: false, errorMessage: e.message})
     }
   })
-  // .get('/info', async (req, res) => {
-  //   const {themaId} = req.query
-  //   if (!themaId) return res.json({ok: false, errorMessage: 'check parameters'})
-  //   try {
-  //     const info = await themas.findOne({_id: new ObjectId(themaId as string)})
-  //     console.log(info)
-  //     res.json({ok: true, body: info})
-  //   } catch (e) {
-  //     console.error('get thema info error: ', e)
-  //     if (e instanceof Error) res.json({ok: false, errorMessage: e.message})
-  //   }
-  // })
-  // .post('/upload', upload.single('thema'), (req, res) => {
-  //   const imageData = req.file
-  //   console.log('Image Data:', imageData)
 
-  //   const imagePath = req.file?.path
-  //   console.log(imagePath)
-  //   return res.json({success: true, imagePath: imagePath})
-  // })
+  router.get('/district/info/:id', async (req, res) => {
+    const {id} = req.params
+    try {
+      const districtId = new ObjectId(id)
+      const a = await district.findOne({_id: districtId})
+      if (!a) {
+        return res.status(404).json({ok: false, errorMessage: 'District not found'})
+      }
+      return res.json({
+        ok: true,
+        body: {
+          city_name: a.city_name,
+          si_gu_name: a.si_gu_name,
+          web_url: a.web_url
+        }
+      })
+    } catch (error) {
+      res.status(500).json({ok: false, errorMessage: 'Error retrieving district info'})
+    }
+  })
+
+  router.post('/district/edit/:id', async (req, res) => {
+    const {id} = req.params
+    const {city_name, si_gu_name, web_url, adminId, author} = req.body
+
+    try {
+      const districtId = new ObjectId(id)
+
+      const updateInfo = {
+        $set: {
+          city_name,
+          si_gu_name,
+          web_url,
+          adminId,
+          author
+        }
+      }
+
+      const result = await district.findOneAndUpdate({_id: districtId}, updateInfo, {
+        returnDocument: 'after'
+      })
+      if (!result) {
+        return res.status(404).json({ok: false, errorMessage: 'District data not found'})
+      }
+
+      return res.json({ok: true, body: result.value})
+    } catch (error) {
+      console.error('update district error: ', error)
+      res.status(500).json({ok: false, errorMessage: 'Error updating district'})
+    }
+  })
 
   return router
 }
