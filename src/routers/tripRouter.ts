@@ -76,6 +76,7 @@ export const tripRouter = (...args: any[]) => {
         web_url,
         short_info,
         place_info,
+        tags,
         adminId,
         author
       } = body
@@ -94,6 +95,7 @@ export const tripRouter = (...args: any[]) => {
         web_url,
         short_info,
         place_info,
+        tags,
         adminId,
         author,
         createdAt
@@ -110,7 +112,7 @@ export const tripRouter = (...args: any[]) => {
 
   router.get('/list', async (req, res) => {
     try {
-      const list = await trip.find({}).toArray()
+      const list = await trip.find({}).sort({createdAt: -1}).toArray()
       const a = list.map(item => ({
         ...item,
         imgName: `${req.protocol}://${req.get('host')}/images/trip/${item.imgName}`
@@ -144,7 +146,8 @@ export const tripRouter = (...args: any[]) => {
           parking_status: a.parking_status,
           web_url: a.web_url,
           short_info: a.short_info,
-          place_info: a.place_info
+          place_info: a.place_info,
+          tags: a.tags
         }
       })
     } catch (error) {
@@ -167,6 +170,7 @@ export const tripRouter = (...args: any[]) => {
       web_url,
       short_info,
       place_info,
+      tags,
       adminId,
       author
     } = req.body
@@ -213,6 +217,7 @@ export const tripRouter = (...args: any[]) => {
           web_url,
           short_info,
           place_info,
+          tags,
           adminId,
           author
         }
@@ -229,6 +234,20 @@ export const tripRouter = (...args: any[]) => {
     } catch (error) {
       console.error('update trip error: ', error)
       res.status(500).json({ok: false, errorMessage: 'Error updating trip'})
+    }
+  })
+
+  router.delete('/delete/:id', async (req, res) => {
+    const {id} = req.params
+
+    try {
+      const tripId = new ObjectId(id)
+      const result = await trip.deleteOne({_id: tripId})
+
+      return res.json({ok: true, body: result})
+    } catch (error) {
+      console.error('delete trip error: ', error)
+      res.status(500).json({ok: false, errorMessage: 'Error deleting trip'})
     }
   })
 

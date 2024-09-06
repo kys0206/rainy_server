@@ -144,6 +144,22 @@ export const areaRouter = (...args: any[]) => {
     }
   })
 
+  router.delete('/city/delete/:id', async (req, res) => {
+    const {id} = req.params
+
+    try {
+      const cityId = new ObjectId(id)
+      const result = await city.deleteOne({_id: cityId})
+
+      return res.json({ok: true, body: result})
+    } catch (error) {
+      console.error('delete city error: ', error)
+      res.status(500).json({ok: false, errorMessage: 'Error deleting city'})
+    }
+  })
+
+  // 시/구
+
   router.post('/district/add', async (req, res) => {
     const {body} = req
 
@@ -221,6 +237,20 @@ export const areaRouter = (...args: any[]) => {
     } catch (error) {
       console.error('update district error: ', error)
       res.status(500).json({ok: false, errorMessage: 'Error updating district'})
+    }
+  })
+
+  router.delete('/district/delete/:id', async (req, res) => {
+    const {id} = req.params
+
+    try {
+      const districtId = new ObjectId(id)
+      const result = await district.deleteOne({_id: districtId})
+
+      return res.json({ok: true, body: result})
+    } catch (error) {
+      console.error('delete district error: ', error)
+      res.status(500).json({ok: false, errorMessage: 'Error deleting district'})
     }
   })
 
