@@ -12,6 +12,7 @@ export const setupRouters = (app: Express, ...args: any[]): Express => {
     .use('/trip', R.tripRouter(...args))
     .use('/restaurant', R.restaurantRouter(...args))
     .use('/festival', R.festivalRouter(...args))
+    .use('/slide', R.slideRouter(...args))
 }
 
 // import {Express} from 'express'
