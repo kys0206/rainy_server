@@ -4,6 +4,7 @@ import {Router} from 'express'
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
+import {decrypt, encrypt} from '../lib/crypto/crypto'
 
 export const festivalRouter = (...args: any[]) => {
   const db: MongoDB = args[0]
@@ -69,7 +70,8 @@ export const festivalRouter = (...args: any[]) => {
         si_gu_name,
         status,
         title,
-        festival_period,
+        festival_start,
+        festival_end,
         festival_info,
         content,
         address,
@@ -81,6 +83,10 @@ export const festivalRouter = (...args: any[]) => {
         author
       } = body
 
+      // 암호화
+      const encryptedContact = encrypt(contact)
+      const encryptedWebUrl = encrypt(web_url)
+
       const createdAt = new Date()
       const newFestival = {
         isPublic,
@@ -88,14 +94,15 @@ export const festivalRouter = (...args: any[]) => {
         si_gu_name,
         status,
         title,
-        festival_period,
+        festival_start,
+        festival_end,
         festival_info,
         content,
         address,
         entrace_fee,
-        contact,
+        contact: encryptedContact,
         imgName,
-        web_url,
+        web_url: encryptedWebUrl,
         adminId,
         author,
         createdAt
@@ -113,10 +120,31 @@ export const festivalRouter = (...args: any[]) => {
   router.get('/list', async (req, res) => {
     try {
       const list = await festival.find({}).toArray()
-      const a = list.map(item => ({
-        ...item,
-        imgName: `${req.protocol}://${req.get('host')}/images/festival/${item.imgName}`
-      }))
+
+      const a = list.map(item => {
+        let decryptedContact = ''
+        let decryptedWebUrl = ''
+
+        try {
+          decryptedContact = decrypt(item.contact)
+        } catch (err) {
+          console.error(`Failed to decrypt contact:`, err)
+        }
+
+        try {
+          decryptedWebUrl = decrypt(item.web_url)
+        } catch (err) {
+          console.error(`Failed to decrypt web_url:`, err)
+        }
+
+        return {
+          ...item,
+          contact: decryptedContact,
+          web_url: decryptedWebUrl,
+          imgName: `${req.protocol}://${req.get('host')}/images/festival/${item.imgName}`
+        }
+      })
+
       res.json({ok: true, body: a})
     } catch (e) {
       console.error('get festival list error: ', e)
@@ -140,14 +168,15 @@ export const festivalRouter = (...args: any[]) => {
           si_gu_name: a.si_gu_name,
           status: a.status,
           title: a.title,
-          festival_period: a.festival_period,
+          festival_start: a.festival_start,
+          festival_end: a.festival_end,
           festival_info: a.festival_info,
           content: a.content,
           address: a.address,
           entrace_fee: a.entrace_fee,
-          contact: a.contact,
+          contact: decrypt(a.contact),
           imgName: `${req.protocol}://${req.get('host')}/images/festival/${a.imgName}`,
-          web_url: a.web_url
+          web_url: decrypt(a.web_url)
         }
       })
     } catch (error) {
@@ -163,7 +192,8 @@ export const festivalRouter = (...args: any[]) => {
       si_gu_name,
       status,
       title,
-      festival_period,
+      festival_start,
+      festival_end,
       festival_info,
       content,
       address,
@@ -210,7 +240,8 @@ export const festivalRouter = (...args: any[]) => {
           si_gu_name,
           status,
           title,
-          festival_period,
+          festival_start,
+          festival_end,
           festival_info,
           content,
           address,

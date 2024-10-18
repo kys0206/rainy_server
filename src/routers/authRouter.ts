@@ -124,7 +124,7 @@ export const authRouter = (...args: any[]) => {
       }
 
       const jwt = await U.jwtSignP({userId: result._id})
-      res.json({ok: true, body: jwt, id: result._id})
+      res.json({ok: true, body: jwt, id: result._id, userName: result.name})
     } catch (e) {
       if (e instanceof Error) res.json({ok: false, errorMessage: e.message})
     }
@@ -182,6 +182,49 @@ export const authRouter = (...args: any[]) => {
       return res
         .status(500)
         .json({ok: false, errorMessage: '이메일을 찾는 중 오류가 발생했습니다.'})
+    }
+  })
+
+  router.post('/modify/user/info', async (req, res) => {
+    const {id, name, birth, phone} = req.body
+
+    try {
+      // 사용자가 존재하는지 확인
+      const userId = new ObjectId(id)
+      const isUser = await users.findOne({_id: userId})
+      if (!isUser) {
+        return res
+          .status(404)
+          .json({ok: false, errorMessage: '사용자를 찾을 수 없습니다.'})
+      }
+
+      // 업데이트할 필드 설정
+      const updateFields = {
+        $set: {
+          name,
+          birth,
+          phone
+        }
+      }
+
+      const result = await users.findOneAndUpdate({_id: userId}, updateFields, {
+        returnDocument: 'after'
+      })
+      if (!result) {
+        return res
+          .status(404)
+          .json({ok: false, errorMessage: '사용자 정보 수정에 실패하였습니다.'})
+      }
+
+      res.json({
+        ok: true,
+        body: result.value,
+        message: '사용자 정보가 성공적으로 변경되었습니다.'
+      })
+    } catch (e) {
+      if (e instanceof Error) {
+        res.json({ok: false, errorMessage: e.message})
+      }
     }
   })
 

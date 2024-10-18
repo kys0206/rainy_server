@@ -1,4 +1,3 @@
-export * from './testRouter'
 export * from './authRouter'
 export * from './adminRouter'
 export * from './themaRouter'
